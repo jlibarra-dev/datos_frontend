@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
 import axios from 'axios';
+import Papa from 'papaparse';
+import { CSVLink } from "react-csv";
 
 let url = "https://fastapiserver-01.herokuapp.com/"
 
@@ -50,6 +52,17 @@ function getMonthFromString(mon) {
 function App() {
   const [ageAlert, setAgeAlert] = useState(false)
   const [sendButton, setSendButton] = useState(true)
+  const [clientPrediction, setclientPrediction] = useState("")
+  const [showPrediction, setShowPrediction] = useState(false)
+  const [dataCSV, setDataCSV] = useState("")
+  const [showCSVDownload, setshowCSVDownload] = useState(false)
+
+  useEffect(() => {
+    if(Array.isArray(dataCSV)){
+      setshowCSVDownload(true)
+      console.log('Ya es array ', dataCSV);
+    }
+  }, [dataCSV]);
 
   function handleChange(event) {
     if (event.target.value < 14 || event.target.value > 60) {
@@ -60,14 +73,32 @@ function App() {
     }
   }
 
-  async function doPredictRequest(body_request) {
+  async function doPredictRequest(body_request, csvFile) {
     let payload = body_request
+    let isCSV = csvFile
     setSendButton(false)
-    let res = await axios.post(url+'predict', payload)
+    let res = await axios.post(url + 'predict', payload)
     let data = res.data
     setSendButton(true)
-    console.log(data)
+    setShowPrediction(true)
+    setclientPrediction(data[0])
+
+    if(isCSV){
+      setShowPrediction(false)
+      setDataCSV([data])
+    }
   }
+
+  const changeCSV = (event) => {
+    var data_processed = []
+    Papa.parse(event.target.files[0], {
+      header: true,
+      skipEmptyLines: true,
+      complete: function (results) {
+        doPredictRequest(results.data,true)
+      },
+    });
+  };
 
   function clickSend(event) {
     var data = {
@@ -102,11 +133,10 @@ function App() {
       "low_spent_small_value_payments": (final == "low_spent_small_value_payments" ? 1 : 0)
     }
     doPredictRequest([data])
-
   }
 
   let send_button = <button type="button" className="btn btn-outline-success" onClick={clickSend}>Success</button>
-  let loading_anim = <div class="spinner-border" role="status"></div>
+  let loading_anim = <div className="spinner-border" role="status"></div>
   let age_alert = <div className="alert alert-danger" role="alert">La edad debe ser un valor entre 14 y 60</div>;
 
   return (
@@ -123,8 +153,15 @@ function App() {
 
 
             {/* Boton de cargar CSV */}
+            <input
+              type="file"
+              name="file"
+              accept=".csv"
+              style={{ display: "block", margin: "10px auto" }}
+              onChange={changeCSV}
+            />
 
-
+            {(showCSVDownload?<CSVLink data={dataCSV} >Descargar resultados</CSVLink>:null)}
           </div>
           {(ageAlert ? age_alert : null)}
           <form>
@@ -208,6 +245,8 @@ function App() {
 
           </form>
           {(sendButton ? send_button : loading_anim)}
+
+          {showPrediction?<h2>El cliente es: {clientPrediction}</h2>:null}
         </div>
       </div>
     </div>
